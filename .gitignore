@@ -1,0 +1,34 @@
+# Compiled files
+/target/
+
+# Cargo lock file for libraries (keep for binaries)
+/Cargo.lock
+
+# Backup and swap files
+*.rs.bk
+*.swp
+*.swo
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.iml
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage and profiling
+/coverage/
+/profiler/
+/*.profraw
+
+# By default, ignore binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.out
