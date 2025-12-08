@@ -34,7 +34,7 @@ impl HotKeyListener for WindowsHotKeyListener {
 
         unsafe { RegisterHotKey(HWND(0), id, HOT_KEY_MODIFIERS(modifier), key)? };
         Ok(())
-    }
+     }
 
     fn listen(&self) {
         use windows::Win32::UI::WindowsAndMessaging::{

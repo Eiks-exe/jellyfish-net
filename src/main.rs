@@ -5,11 +5,14 @@ mod hotkeys;
 mod utils; 
 //use hook::start_hook;
 
-use std::sync::{Arc, Mutex};
-
+use std::{sync::{Arc, Mutex}};
+use once_cell::sync::OnceCell;
 use windows::Win32::{Foundation::HWND, UI::{Input::KeyboardAndMouse::{MOD_ALT}, WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow}}};
 
-use crate::{hotkeys::HotKeyListener, manager::WindowManager, utils::get_window_title, window::Jfnindow};
+use crate::{hook::start_hook, hotkeys::HotKeyListener, manager::WindowManager, utils::get_window_title, window::Jfnindow};
+
+
+pub static GLOBAL_MANAGER: OnceCell<Arc<Mutex<WindowManager>>> = OnceCell::new(); 
 
 fn jfn_catch(manager: &WindowManager) {
     let focused_window_handle = unsafe {GetForegroundWindow()};
@@ -40,30 +43,40 @@ fn cycle(manager: &WindowManager) {
         eprintln!("no next window to cycle to")
     }
 }
+fn init_manager() {
+    let manager = Arc::new(Mutex::new(WindowManager::new())); 
+    GLOBAL_MANAGER.set(manager.clone()).expect("could not set manager");     
+}
 
 fn main() { 
     println!("start");
-    let manager = WindowManager::default();
+    init_manager();
+    start_hook();
 
     let listener = hotkeys::WindowsHotKeyListener{
         actions: Arc::new(Mutex::new(Vec::new()))
     } ;
     listener.add_action(1, {
-        let manager = manager.clone(); 
         Box::new(
             move || {
-                jfn_catch(&manager);
+                if let Some(mgr) = GLOBAL_MANAGER.get() {
+                    let manager = mgr.lock().unwrap();
+                    jfn_catch(&manager);
+                }
             }
         )
     }).expect("could not add action"); 
 
     listener.add_action(2, {
-        let manager = manager.clone();
-            Box::new(
-                move || {
+        Box::new(
+            move || {
+                if let Some(mgr) = GLOBAL_MANAGER.get() {
+                    let manager = mgr.lock().unwrap();
                     cycle(&manager);
                 }
-            )
+                
+            }
+        )
     }).expect("could not add action");
 
     listener.register(1, MOD_ALT.0 , 222).expect("could not register the hotkey...");

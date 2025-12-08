@@ -1,14 +1,16 @@
-
 use windows::Win32::{
-    Foundation::{BOOL, HWND, RECT},
+    Foundation::{HWND},
     UI::{
         Accessibility::{HWINEVENTHOOK, SetWinEventHook},
         WindowsAndMessaging::{
-            EVENT_OBJECT_CREATE, EVENT_OBJECT_DESTROY, GA_ROOT, GetWindowTextLengthW, GetWindowTextW, OBJID_WINDOW, WINEVENT_OUTOFCONTEXT, GetAncestor, GetWindowRect,IsWindow
+            EVENT_OBJECT_DESTROY, WINEVENT_OUTOFCONTEXT 
         },
     },
 };
-extern "system" fn win_event_callback(
+use crate::{get_window_title};
+use crate::GLOBAL_MANAGER;
+
+pub extern "system" fn win_event_callback(
     _hook: HWINEVENTHOOK,
     event: u32,
     hwnd: HWND,
@@ -17,77 +19,33 @@ extern "system" fn win_event_callback(
     _event_thread: u32,
     _event_time: u32,
 ){
-    unsafe {
-        fn get_window_title(hwnd: HWND) -> String {
-            unsafe {
-                let len = GetWindowTextLengthW(hwnd);
-                if len <= 0 {
-                    return String::new();
-                }      
+    
+    let title = get_window_title(hwnd);
+    let excluded_classes = ["Shell_TrayWnd", "Progman", "ActiveMovie Window"];
+    if excluded_classes.contains(&title.as_str()) {
+        return;
+    }
 
-                let mut buf = vec![0u16; (len + 1) as usize];
-                let copied = GetWindowTextW(hwnd, &mut buf);
-                if copied <= 0 {
-                    return String::new();
-                }
+    if title.is_empty() {
+        return; 
+    }
 
-                String::from_utf16_lossy(&buf[..copied as usize])
-            }
-        }
-
-        if _id_object != OBJID_WINDOW.0 {
-            return;
-        }
-
-        if GetAncestor(hwnd, GA_ROOT) != hwnd {
-            return;
-        }
-
-        if IsWindow(hwnd) == BOOL(0) {
-            return;
-        }
-
-        let mut rect = windows::Win32::Foundation::RECT::default();
-        let result = {GetWindowRect(hwnd, &mut rect as *mut RECT)};
-        match result {
-            Ok(()) => {
-                if rect.left == rect.right || rect.top == rect.bottom {
-                    return ;
-                }
-            }
-            Err(e) => {
-                eprintln!("GetWindowRect failed: {:?}", e); 
-            }
-        }
-        let title = get_window_title(hwnd);
-        let excluded_classes = ["Shell_TrayWnd", "Progman", "ActiveMovie Window"];
-        if excluded_classes.contains(&title.as_str()) {
-            return;
-        }
-
-        if title.is_empty() {
-            return; 
-        }
-
-        match event {
-            EVENT_OBJECT_CREATE =>{
-                println!("new window opened: {}, title: {}", event, title);  
-            }
-
-            EVENT_OBJECT_DESTROY =>{
-                println!("new window destroyed: {}, title: {}", event, title); 
-            }
-            
-            _=> {}
+    if event == EVENT_OBJECT_DESTROY {
+        let manager = GLOBAL_MANAGER.get().unwrap();
+        let guard = manager.lock().unwrap();
+        let window_exist = guard.w_info.lock().unwrap().contains_key(&hwnd.0);
+        if window_exist {
+            guard.remove(hwnd.0);
         }
     }
+    
 }
 
 pub fn start_hook() {
      
     unsafe {
         SetWinEventHook(
-            EVENT_OBJECT_CREATE,
+            EVENT_OBJECT_DESTROY,
             EVENT_OBJECT_DESTROY,
             None,
             Some(win_event_callback),

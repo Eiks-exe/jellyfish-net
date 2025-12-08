@@ -10,7 +10,7 @@ pub struct Link {
     pub next: Option<isize>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WindowManager {
     // TID → Window
     pub w_info: Arc<Mutex<HashMap<isize, Jfnindow>>>,
@@ -96,12 +96,13 @@ impl WindowManager {
         println!("[+] Added window handle {}", handle);
     }
 
-    /// Remove window by TID
+    /// Remove window by handle
     pub fn remove(&self, handle: isize) {
         let mut info = self.w_info.lock().unwrap();
         let mut links = self.links.lock().unwrap();
         let mut head = self.head.lock().unwrap();
         let mut tail = self.tail.lock().unwrap();
+        let mut current = self.current.lock().unwrap();
 
         if let Some(link) = links.remove(&handle) {
             // Fix prev neighbor
@@ -124,7 +125,11 @@ impl WindowManager {
                 *tail = link.prev;
             }
         }
-
+        if let Some(cur) = *current{
+            if handle == cur {
+                *current = None; 
+            }
+        }
         info.remove(&handle);
 
         println!("[-] Removed window handle {}", handle);
