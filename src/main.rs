@@ -7,7 +7,8 @@ mod utils;
 
 use std::{sync::{Arc, Mutex}};
 use once_cell::sync::OnceCell;
-use windows::Win32::{Foundation::HWND, UI::{Input::KeyboardAndMouse::{MOD_ALT}, WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow}}};
+use tray_icon::{TrayIconBuilder, Icon, menu::{Menu, MenuItemBuilder}};
+use windows::Win32::{Foundation::{HINSTANCE, HWND}, UI::{Input::KeyboardAndMouse::MOD_ALT, WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, IDI_APPLICATION, LoadIconW, SetForegroundWindow}}};
 
 use crate::{hook::start_hook, hotkeys::HotKeyListener, manager::WindowManager, utils::get_window_title, window::Jfnindow};
 
@@ -50,6 +51,26 @@ fn init_manager() {
 
 fn main() { 
     println!("start");
+    let hicon = unsafe {
+        LoadIconW(HINSTANCE::default(), IDI_APPLICATION).unwrap()
+    };
+    let icon = Icon::from_handle(hicon.0); 
+        
+    let item = MenuItemBuilder::new()
+        .id(1.into())
+        .text("Quit")
+        .enabled(true)
+        .build();
+    let menu = Menu::new();
+    let _append_menu_item = menu.append(&item);
+    let _systray_menu = TrayIconBuilder::new()
+        .with_menu(Box::new(menu))
+        .with_tooltip("JellyfishNet is running...")
+        .with_icon(icon)
+        .build()
+        .unwrap();
+        
+
     init_manager();
     start_hook();
 

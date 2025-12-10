@@ -2,6 +2,7 @@ use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use tray_icon::menu::MenuEvent;
 
 pub trait HotKeyListener {
     fn register(&self, id: i32, modifiers: u32, key: u32) -> Result<(), Box<dyn Error>>;
@@ -46,6 +47,12 @@ impl HotKeyListener for WindowsHotKeyListener {
             let mut msg = MSG::default();
 
             while GetMessageW(&mut msg, HWND(0), 0, 0).into() {
+                if let Ok(event) = MenuEvent::receiver().try_recv() {
+                    if event.id() == "1" {
+                        println!("quitting JellyfishNet...");
+                        std::process::exit(0); 
+                    }
+                } 
                 if msg.message == WM_HOTKEY {
                     let id = msg.wParam.0 as i32;
                     self.trigger_action(id);
