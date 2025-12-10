@@ -1,8 +1,8 @@
-use crate::window::Jfnindow;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+use crate::window::Jfnindow;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Link {
@@ -19,7 +19,7 @@ pub struct WindowManager {
     // First and last item in linked list
     pub head: Arc<Mutex<Option<isize>>>,
     pub tail: Arc<Mutex<Option<isize>>>,
-    pub current: Arc<Mutex<Option<isize>>>,
+    pub current: Arc<Mutex<Option<isize>>>
 }
 
 impl Default for WindowManager {
@@ -35,13 +35,13 @@ impl WindowManager {
             links: Arc::new(Mutex::new(HashMap::new())),
             head: Arc::new(Mutex::new(None)),
             tail: Arc::new(Mutex::new(None)),
-            current: Arc::new(Mutex::new(Option::None)),
+            current: Arc::new(Mutex::new(Option::None)) 
         }
     }
 
     /// Add a new window at the end of the linked list
     pub fn add(&self, window: Jfnindow) {
-        let handle = window.handle.0;
+        let handle = window.handle.0; 
 
         let mut info = self.w_info.lock().unwrap();
         let mut links = self.links.lock().unwrap();
@@ -76,7 +76,9 @@ impl WindowManager {
             }
             Some(old_tail) => {
                 // Patch old tail
-                links.entry(old_tail).and_modify(|l| l.next = Some(handle));
+                links
+                    .entry(old_tail)
+                    .and_modify(|l| l.next = Some(handle));
 
                 // Insert new tail
                 links.insert(
@@ -123,9 +125,9 @@ impl WindowManager {
                 *tail = link.prev;
             }
         }
-        if let Some(cur) = *current {
+        if let Some(cur) = *current{
             if handle == cur {
-                *current = None;
+                *current = None; 
             }
         }
         info.remove(&handle);
@@ -146,31 +148,32 @@ impl WindowManager {
             cur = links.get(&handle).and_then(|l| l.next);
         }
     }
-
-    pub fn cycle(&self) -> Option<isize> {
+    
+    pub fn cycle(&self) -> Option<isize>{
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-        let fg = unsafe { GetForegroundWindow() };
+        let fg = unsafe {GetForegroundWindow()};
         let fg_handle = fg.0 as isize;
         let mut current = self.current.lock().unwrap();
         let links = self.links.lock().unwrap();
         if let Some(cur) = *current {
             if fg_handle == cur {
-                // Foreground is our current → advance
-                if let Some(next) = links.get(&cur).and_then(|l| l.next) {
-                    *current = Some(next);
-                    return Some(next);
-                }
-            } else if links.contains_key(&fg_handle) {
+            // Foreground is our current → advance
+            if let Some(next) = links.get(&cur).and_then(|l| l.next) {
+                *current = Some(next);
+                return Some(next);
+            }
+        }else if links.contains_key(&fg_handle) {
                 *current = Some(fg_handle);
-                return Some(fg_handle);
+                return Some(fg_handle); 
             } else {
                 return Some(cur);
             }
         }
         *current = self.get_head();
-        self.get_head()
+        self.get_head() 
     }
-
+    
+    
     pub fn _get_prev(&self, handle: isize) -> Option<isize> {
         self.links.lock().unwrap().get(&handle).and_then(|l| l.prev)
     }

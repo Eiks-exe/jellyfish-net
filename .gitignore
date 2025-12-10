@@ -3,8 +3,7 @@
 
 # Cargo lock file for libraries (keep for binaries)
 /Cargo.lock
-# Release artifact
-/Release/
+
 # Backup and swap files
 *.rs.bk
 *.swp
