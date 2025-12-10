@@ -1,14 +1,12 @@
+use crate::get_window_title;
+use crate::GLOBAL_MANAGER;
 use windows::Win32::{
-    Foundation::{HWND},
+    Foundation::HWND,
     UI::{
-        Accessibility::{HWINEVENTHOOK, SetWinEventHook},
-        WindowsAndMessaging::{
-            EVENT_OBJECT_DESTROY, WINEVENT_OUTOFCONTEXT 
-        },
+        Accessibility::{SetWinEventHook, HWINEVENTHOOK},
+        WindowsAndMessaging::{EVENT_OBJECT_DESTROY, WINEVENT_OUTOFCONTEXT},
     },
 };
-use crate::{get_window_title};
-use crate::GLOBAL_MANAGER;
 
 pub extern "system" fn win_event_callback(
     _hook: HWINEVENTHOOK,
@@ -18,8 +16,7 @@ pub extern "system" fn win_event_callback(
     _id_child: i32,
     _event_thread: u32,
     _event_time: u32,
-){
-    
+) {
     let title = get_window_title(hwnd);
     let excluded_classes = ["Shell_TrayWnd", "Progman", "ActiveMovie Window"];
     if excluded_classes.contains(&title.as_str()) {
@@ -27,7 +24,7 @@ pub extern "system" fn win_event_callback(
     }
 
     if title.is_empty() {
-        return; 
+        return;
     }
 
     if event == EVENT_OBJECT_DESTROY {
@@ -38,11 +35,9 @@ pub extern "system" fn win_event_callback(
             guard.remove(hwnd.0);
         }
     }
-    
 }
 
 pub fn start_hook() {
-     
     unsafe {
         SetWinEventHook(
             EVENT_OBJECT_DESTROY,
@@ -55,4 +50,3 @@ pub fn start_hook() {
         );
     };
 }
-
