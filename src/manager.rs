@@ -135,20 +135,29 @@ impl WindowManager {
         println!("[-] Removed window handle {}", handle);
     }
 
-    /// Print windows in linked-list order
-    pub fn enum_windows(&self) {
+    /// Ordered snapshot of tracked windows, head -> tail. Lock order: w_info -> links -> head.
+    pub fn snapshot_ordered(&self) -> Vec<(isize, Jfnindow)> {
         let info = self.w_info.lock().unwrap();
         let links = self.links.lock().unwrap();
         let mut cur = *self.head.lock().unwrap();
+        let mut result = Vec::new();
 
         while let Some(handle) = cur {
             if let Some(w) = info.get(&handle) {
-                println!("{}", w.title);
+                result.push((handle, w.clone()));
             }
             cur = links.get(&handle).and_then(|l| l.next);
         }
+        result
     }
-    
+
+    /// Print windows in linked-list order
+    pub fn enum_windows(&self) {
+        for (_, w) in self.snapshot_ordered() {
+            println!("{}", w.title);
+        }
+    }
+
     pub fn cycle(&self) -> Option<isize>{
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
         let fg = unsafe {GetForegroundWindow()};
@@ -188,5 +197,112 @@ impl WindowManager {
 
     pub fn _get_tail(&self) -> Option<isize> {
         *self.tail.lock().unwrap()
+    }
+
+    pub fn get_current(&self) -> Option<isize> {
+        *self.current.lock().unwrap()
+    }
+
+    /// Writes `current` directly, bypassing cycle()'s foreground-based branching. Used by the
+    /// hold-to-preview commit path once the user has picked a target and it's already been focused --
+    /// there's no foreground check left to do at that point. Lock order: current only.
+    pub fn set_current(&self, handle: Option<isize>) {
+        *self.current.lock().unwrap() = handle;
+    }
+
+    /// Read-only mirror of cycle()'s decision logic: the handle cycle() would move `current` to right
+    /// now, without actually mutating `current`. Used to seed a hold-to-preview session so its first
+    /// step honors the same foreground-resync semantics as an instant tap; subsequent steps within the
+    /// same hold should use `peek_after` instead, since the real foreground doesn't change until commit.
+    /// Lock order: current -> links (matches cycle()).
+    pub fn peek_next(&self) -> Option<isize> {
+        use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+        let fg = unsafe { GetForegroundWindow() };
+        let fg_handle = fg.0 as isize;
+        let current = *self.current.lock().unwrap();
+        let links = self.links.lock().unwrap();
+
+        if let Some(cur) = current {
+            if fg_handle == cur {
+                if let Some(next) = links.get(&cur).and_then(|l| l.next) {
+                    return Some(next);
+                }
+                // cur is the tail -> fall through and wrap to head, same as cycle().
+            } else if links.contains_key(&fg_handle) {
+                return Some(fg_handle);
+            } else {
+                return Some(cur);
+            }
+        }
+        drop(links);
+        self.get_head()
+    }
+
+    /// The handle `steps` positions after `from` in the linked list, wrapping tail -> head.
+    /// If `from` is `None` (or untracked), counts from `head`. Pure: does not touch `current`.
+    /// Lock order: links -> head.
+    pub fn peek_after(&self, from: Option<isize>, steps: usize) -> Option<isize> {
+        let links = self.links.lock().unwrap();
+        let head = *self.head.lock().unwrap();
+
+        let mut cur = from.or(head)?;
+        for _ in 0..steps {
+            cur = links.get(&cur).and_then(|l| l.next).or(head)?;
+        }
+        Some(cur)
+    }
+
+    /// Swap two adjacent nodes where `a` immediately precedes `b`. Lock order: links -> head -> tail.
+    fn swap_adjacent(&self, a: isize, b: isize) {
+        let mut links = self.links.lock().unwrap();
+        let mut head = self.head.lock().unwrap();
+        let mut tail = self.tail.lock().unwrap();
+
+        let p = links.get(&a).and_then(|l| l.prev);
+        let n = links.get(&b).and_then(|l| l.next);
+
+        links.insert(b, Link { prev: p, next: Some(a) });
+        links.insert(a, Link { prev: Some(b), next: n });
+
+        match p {
+            Some(p_handle) => {
+                if let Some(l) = links.get_mut(&p_handle) {
+                    l.next = Some(b);
+                }
+            }
+            None => *head = Some(b),
+        }
+        match n {
+            Some(n_handle) => {
+                if let Some(l) = links.get_mut(&n_handle) {
+                    l.prev = Some(a);
+                }
+            }
+            None => *tail = Some(a),
+        }
+    }
+
+    /// Move `handle` one position toward the head, swapping it with its previous neighbor.
+    /// Returns false (no-op) if untracked or already head.
+    pub fn move_up(&self, handle: isize) -> bool {
+        let prev = self.links.lock().unwrap().get(&handle).and_then(|l| l.prev);
+        match prev {
+            Some(prev) => {
+                self.swap_adjacent(prev, handle);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Move `handle` one position toward the tail. Equivalent to moving its successor up (the same
+    /// pointer swap, just named from the other node's perspective), so it just delegates to move_up.
+    /// Returns false (no-op) if untracked or already tail.
+    pub fn move_down(&self, handle: isize) -> bool {
+        let next = self.links.lock().unwrap().get(&handle).and_then(|l| l.next);
+        match next {
+            Some(next) => self.move_up(next),
+            None => false,
+        }
     }
 }

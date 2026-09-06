@@ -50,9 +50,11 @@ impl HotKeyListener for WindowsHotKeyListener {
                 if let Ok(event) = MenuEvent::receiver().try_recv() {
                     if event.id() == "1" {
                         println!("quitting JellyfishNet...");
-                        std::process::exit(0); 
+                        std::process::exit(0);
+                    } else if event.id() == "2" {
+                        crate::show_management_window();
                     }
-                } 
+                }
                 if msg.message == WM_HOTKEY {
                     let id = msg.wParam.0 as i32;
                     self.trigger_action(id);
