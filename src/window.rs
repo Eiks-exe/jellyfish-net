@@ -1,4 +1,4 @@
-use crate::HWND;
+use windows::Win32::Foundation::HWND;
 #[derive(Clone, Debug)]
 pub struct Jfnindow {
     pub title: String,
